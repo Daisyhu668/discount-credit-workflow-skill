@@ -185,6 +185,9 @@ def _split_line_value(line: str) -> Tuple[str | None, str]:
 
 def parse_template_txt(path: Path) -> Tuple[Dict[str, str], list[str]]:
     text = path.read_text(encoding="utf-8")
+    # 兼容“占位服务”导出格式：文本内包含字面量 \n / \r\n。
+    if "\\n" in text and text.count("\n") <= 2:
+        text = text.replace("\\r\\n", "\n").replace("\\n", "\n")
     values: Dict[str, str] = {}
     warnings: list[str] = []
     for raw_line in text.splitlines():
