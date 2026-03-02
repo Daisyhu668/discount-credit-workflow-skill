@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+输出结果/
+*.DS_Store
