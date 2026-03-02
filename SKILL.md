@@ -41,6 +41,10 @@ description: "Build and run an end-to-end discount-credit (贴现授信) pipelin
 python scripts/run_discount_pipeline.py assets/input_sample_minimal.json --auto-web-search --yes --output 输出结果
 ```
 
+输入文件支持两种格式：
+- `*_values_snapshot.json`（推荐）
+- `00_用户清单_*.txt`（兼容占位服务导出的 `\\n` 文本）
+
 带邮件发送（SMTP）示例：
 
 ```bash
