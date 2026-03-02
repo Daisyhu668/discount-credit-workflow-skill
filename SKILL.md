@@ -38,7 +38,7 @@ description: "Build and run an end-to-end discount-credit (贴现授信) pipelin
 推荐使用一键流水线脚本：
 
 ```bash
-python scripts/run_discount_pipeline.py assets/input_sample_minimal.json --yes --output 输出结果
+python scripts/run_discount_pipeline.py assets/input_sample_minimal.json --auto-web-search --yes --output 输出结果
 ```
 
 带邮件发送（SMTP）示例：
@@ -56,6 +56,7 @@ python scripts/run_discount_pipeline.py assets/input_sample_minimal.json \
 ## Scripts
 
 - `scripts/run_discount_pipeline.py`：总控流程（确认单 -> 生成 -> 可选发信）。
+- `scripts/search_company_web.py`：根据企业名称联网检索并提取可回填字段。
 - `scripts/generate_discount_docs.py`：模板填充引擎（xlsx/docx/txt + 输出清单 manifest）。
 - `scripts/interactive_discount_assistant.py`：交互式流程（适合人工逐步确认）。
 
