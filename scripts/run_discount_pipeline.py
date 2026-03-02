@@ -29,6 +29,7 @@ from generate_discount_docs import (  # noqa: E402
     load_inputs,
     prefixed_output_name,
 )
+from search_company_web import run_search  # noqa: E402
 
 
 def prompt_confirm(msg: str, default_yes: bool = False) -> bool:
@@ -170,6 +171,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="贴现授信一键流程脚本")
     parser.add_argument("input_file", type=Path, help="输入 JSON/TXT 文件")
     parser.add_argument("--enrich-json", type=Path, help="可选：联网检索补充字段 JSON")
+    parser.add_argument("--auto-web-search", action="store_true", help="根据企业名称自动联网检索并回填")
+    parser.add_argument("--web-search-results", type=int, default=8, help="自动联网检索保留条数")
     parser.add_argument("--research-note", default="", help="可选：记录联网检索结论")
     parser.add_argument("--allow-missing", action="store_true", help="允许必填字段缺失也继续生成")
     parser.add_argument("--yes", action="store_true", help="跳过人工确认")
@@ -232,9 +235,31 @@ def main(argv: Sequence[str]) -> None:
         print(f"[ERR] 未找到输入文件: {input_path}", file=sys.stderr)
         sys.exit(1)
 
+    output_dir = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     raw_values, parse_warnings = load_inputs(input_path)
+    auto_enrich: Dict[str, str] = {}
+    auto_note = ""
+    auto_enrich_path: Path | None = None
+    auto_note_path: Path | None = None
+
+    if args.auto_web_search:
+        company_name = str(raw_values.get("企业名称", "")).strip()
+        if not company_name:
+            print("[ERR] 启用 --auto-web-search 时，输入必须包含“企业名称”。", file=sys.stderr)
+            sys.exit(1)
+        auto_enrich, auto_note = run_search(company_name, max_results=args.web_search_results)
+        auto_enrich_path = output_dir / prefixed_output_name(company_name, "联网检索补充.json")
+        auto_note_path = output_dir / prefixed_output_name(company_name, "联网检索结果.md")
+        auto_enrich_path.write_text(json.dumps(auto_enrich, ensure_ascii=False, indent=2), encoding="utf-8")
+        auto_note_path.write_text(auto_note.strip() + "\n", encoding="utf-8")
+        print(f"[OK] 自动检索补充: {auto_enrich_path}")
+        print(f"[OK] 自动检索备注: {auto_note_path}")
+
     enrich_values = load_optional_json(args.enrich_json.resolve() if args.enrich_json else None)
-    merged_values = {**raw_values, **enrich_values}
+    # 优先级：原始输入 < 自动检索 < 人工补充文件
+    merged_values = {**raw_values, **auto_enrich, **enrich_values}
 
     try:
         mapping = compute_fields(merged_values)
@@ -242,16 +267,20 @@ def main(argv: Sequence[str]) -> None:
         print(f"[ERR] 字段校验失败: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    output_dir = args.output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     missing_fields = collect_missing_fields(mapping)
     company = mapping.get("企业名称", "待确认主体")
+    combined_note = args.research_note.strip()
+    if auto_note.strip():
+        combined_note = (
+            (combined_note + "\n\n" + auto_note.strip())
+            if combined_note
+            else auto_note.strip()
+        )
     confirmation_path = render_confirmation_sheet(
         output_dir,
         mapping,
         missing_fields,
-        research_note=args.research_note,
+        research_note=combined_note,
     )
 
     if parse_warnings:
@@ -383,6 +412,12 @@ def main(argv: Sequence[str]) -> None:
         "字段确认单": str(confirmation_path),
         "输出清单": str(result.manifest_path),
         "missing_fields": missing_fields,
+        "联网检索": {
+            "enabled": bool(args.auto_web_search),
+            "auto_enrich_json": str(auto_enrich_path) if auto_enrich_path else "",
+            "auto_note_md": str(auto_note_path) if auto_note_path else "",
+            "manual_enrich_json": str(args.enrich_json.resolve()) if args.enrich_json else "",
+        },
         "邮件发送": {
             "enabled": bool(args.send_email),
             "manager_sent": sent_manager,
