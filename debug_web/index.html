@@ -283,6 +283,17 @@
                 <input name="address" placeholder="厦门市同安区..." required />
               </div>
               <div>
+                <label>实际地址是否同注册地址</label>
+                <select name="same_address">
+                  <option value="yes">是</option>
+                  <option value="no">否</option>
+                </select>
+              </div>
+              <div>
+                <label>实际经营地址</label>
+                <input name="actual_address" placeholder="若不同请填写" />
+              </div>
+              <div>
                 <label>法定代表人</label>
                 <input name="legal_rep" placeholder="陈珊娥" required />
               </div>
@@ -307,6 +318,9 @@
             <div class="divider"></div>
             <h2 class="section-title">额外字段 (JSON)</h2>
             <textarea name="extra_json" placeholder='{"主营业务": "批发零售...", "审批注意事项": "..."}'></textarea>
+            <div class="actions" style="margin-top:12px;">
+              <button class="btn secondary" type="button" id="loadFullTemplate">加载完整字段模板</button>
+            </div>
           </div>
 
           <div id="uploadBlock" style="display:none;">
@@ -372,11 +386,84 @@
         });
       });
 
+      const FULL_TEMPLATE = {
+        "实际地址是否同注册地址": "是",
+        "实际经营地址": "",
+        "注册资本": "",
+        "主营业务": "",
+        "基本生产流程": "",
+        "生产周期": "",
+        "上一年度": "",
+        "上一年度主营产品占比": "",
+        "本年度": "",
+        "本年度营业收入": "",
+        "本年营业收入": "",
+        "本年度主营产品占比": "",
+        "采购渠道": "",
+        "采购结算方式": "",
+        "采购结算周期": "",
+        "采购付款方式": "",
+        "销售渠道": "",
+        "销售结算方式": "",
+        "销售结算周期": "",
+        "销售付款方式": "",
+        "上游供货商1名称": "",
+        "上游供货商1品类": "",
+        "上游供货商1结算方式": "",
+        "上游供货商1结算周期": "",
+        "上游供货商2名称": "",
+        "上游供货商2品类": "",
+        "上游供货商2结算方式": "",
+        "上游供货商2结算周期": "",
+        "上游供货商3名称": "",
+        "上游供货商3品类": "",
+        "上游供货商3结算方式": "",
+        "上游供货商3结算周期": "",
+        "上游供货商4名称": "",
+        "上游供货商4品类": "",
+        "上游供货商4结算方式": "",
+        "上游供货商4结算周期": "",
+        "上游供货商5名称": "",
+        "上游供货商5品类": "",
+        "上游供货商5结算方式": "",
+        "上游供货商5结算周期": "",
+        "下游客户1名称": "",
+        "下游客户1产品": "",
+        "下游客户1结算方式": "",
+        "下游客户1结算周期": "",
+        "下游客户2名称": "",
+        "下游客户2产品": "",
+        "下游客户2结算方式": "",
+        "下游客户2结算周期": "",
+        "下游客户3名称": "",
+        "下游客户3产品": "",
+        "下游客户3结算方式": "",
+        "下游客户3结算周期": "",
+        "下游客户4名称": "",
+        "下游客户4产品": "",
+        "下游客户4结算方式": "",
+        "下游客户4结算周期": "",
+        "下游客户5名称": "",
+        "下游客户5产品": "",
+        "下游客户5结算方式": "",
+        "下游客户5结算周期": "",
+        "审批注意事项": ""
+      };
+
+      const loadFullTemplateBtn = document.getElementById('loadFullTemplate');
+      if (loadFullTemplateBtn) {
+        loadFullTemplateBtn.addEventListener('click', () => {
+          form.extra_json.value = JSON.stringify(FULL_TEMPLATE, null, 2);
+        });
+      }
+
       loadSampleBtn.addEventListener('click', () => {
         form.company.value = '厦门市鑫亿宏工贸有限公司';
         form.tax_id.value = '91350211769292356A';
         form.reg_date.value = '2005-05-27';
         form.address.value = '厦门市同安区洪塘头一路126号202室之一';
+        form.same_address.value = 'yes';
+        form.actual_address.value = '';
         form.legal_rep.value = '陈珊娥';
         form.industry.value = '批发业';
         form.apply_date.value = '2025-11-07';
