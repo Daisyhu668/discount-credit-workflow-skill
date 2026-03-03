@@ -45,6 +45,16 @@ python scripts/run_discount_pipeline.py assets/input_sample_minimal.json --auto-
 - `*_values_snapshot.json`（推荐）
 - `00_用户清单_*.txt`（兼容占位服务导出的 `\\n` 文本）
 
+## Debug Web UI
+
+用于本地调试流程逻辑与字段确认：
+
+```bash
+python debug_web/app.py
+```
+
+浏览器打开 `http://127.0.0.1:8787`，即可表单执行一键流程并查看输出日志与文件清单。
+
 带邮件发送（SMTP）示例：
 
 ```bash
