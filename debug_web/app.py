@@ -77,6 +77,8 @@ class Handler(BaseHTTPRequestHandler):
                 "统一社会信用代码": form.getfirst("tax_id", "").strip(),
                 "注册时间": form.getfirst("reg_date", "").strip(),
                 "注册地址": form.getfirst("address", "").strip(),
+                "实际地址是否同注册地址": form.getfirst("same_address", "yes").strip(),
+                "实际经营地址": form.getfirst("actual_address", "").strip(),
                 "法定代表人": form.getfirst("legal_rep", "").strip(),
                 "行业类型": form.getfirst("industry", "").strip(),
                 "申请日期": form.getfirst("apply_date", "").strip(),
