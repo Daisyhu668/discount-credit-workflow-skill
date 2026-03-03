@@ -330,6 +330,27 @@
           </div>
 
           <div class="divider"></div>
+          <h2 class="section-title">邮件收件人</h2>
+          <div class="form-grid">
+            <div>
+              <label>客户经理收件人</label>
+              <input name="manager_to" placeholder="manager@example.com" />
+            </div>
+            <div>
+              <label>客户经理抄送</label>
+              <input name="manager_cc" placeholder="risk@example.com" />
+            </div>
+            <div>
+              <label>客户收件人</label>
+              <input name="customer_to" placeholder="customer@example.com" />
+            </div>
+            <div>
+              <label>客户抄送</label>
+              <input name="customer_cc" placeholder="manager@example.com" />
+            </div>
+          </div>
+
+          <div class="divider"></div>
           <h2 class="section-title">执行参数</h2>
           <div class="form-grid">
             <div>
@@ -469,6 +490,10 @@
         form.apply_date.value = '2025-11-07';
         form.last_year_revenue.value = '647.49';
         form.net_asset.value = '37.87';
+        form.manager_to.value = 'manager@example.com';
+        form.manager_cc.value = 'risk@example.com';
+        form.customer_to.value = 'customer@example.com';
+        form.customer_cc.value = 'manager@example.com';
         form.extra_json.value = '{"审批注意事项":"样例填充"}';
       });
 
