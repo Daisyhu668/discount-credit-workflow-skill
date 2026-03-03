@@ -374,20 +374,56 @@ def render_customer_material_list(output_dir: Path, mapping: Dict[str, str]) -> 
     return path
 
 
+def collect_customer_templates(templates_dir: Path) -> list[Path]:
+    candidates = [
+        "客户-附件7申请书.xlsx",
+        "客户-商业汇票贴现协议（卖方付息）（2024年2月版）.doc",
+        "客户-厦门银行授管〔2024〕7号 附件2：厦门银行企业征信授权书（20230901启用）.doc",
+    ]
+    found: list[Path] = []
+    for name in candidates:
+        path = templates_dir / name
+        if path.exists():
+            found.append(path)
+    # 兜底：任何包含“承诺书”的文件都加入
+    for path in templates_dir.glob("*承诺书*"):
+        if path not in found and path.is_file():
+            found.append(path)
+    return found
+
+
+def copy_customer_templates(
+    templates_dir: Path,
+    output_dir: Path,
+    company: str,
+) -> list[Path]:
+    outputs: list[Path] = []
+    for src in collect_customer_templates(templates_dir):
+        target = output_dir / prefixed_output_name(company, src.name)
+        target.write_bytes(src.read_bytes())
+        outputs.append(target)
+    return outputs
+
+
 def render_email_drafts(
     output_dir: Path,
     mapping: Dict[str, str],
     generated_docs: Sequence[Path],
     customer_material_list: Path,
+    customer_templates: Sequence[Path],
 ) -> list[Path]:
     company = mapping.get("企业名称", "客户")
     approval_notes = mapping.get("审批注意事项", "").strip()
+    manager_to = mapping.get("客户经理收件人", "客户经理（待填写）")
+    manager_cc = mapping.get("客户经理抄送", "风险经理/审批岗（待填写）")
+    customer_to = mapping.get("客户收件人", "客户联系人（待填写）")
+    customer_cc = mapping.get("客户抄送", "客户经理（待填写）")
 
     manager_mail = output_dir / prefixed_output_name(company, "邮件草稿-客户经理.txt")
     manager_lines = [
         f"邮件主题：[线上贴] {company} 授信贴现材料（待客户经理完善）",
-        "收件人：客户经理（待填写）",
-        "抄送：风险经理/审批岗（待填写）",
+        f"收件人：{manager_to}",
+        f"抄送：{manager_cc}",
         "",
         "正文：",
         f"{company} 的贴现授信材料已自动生成，请补充并复核后发起审批。",
@@ -401,6 +437,7 @@ def render_email_drafts(
     ]
     manager_lines.extend(f"- {path.name}" for path in generated_docs)
     manager_lines.append(f"- {customer_material_list.name}")
+    manager_lines.extend(f"- {path.name}" for path in customer_templates)
     if approval_notes:
         manager_lines.append("")
         manager_lines.append(f"审批注意事项：{approval_notes}")
@@ -409,8 +446,8 @@ def render_email_drafts(
     customer_mail = output_dir / prefixed_output_name(company, "邮件草稿-客户.txt")
     customer_lines = [
         f"邮件主题：[请盖章回传] {company} 贴现授信申请材料",
-        "收件人：客户联系人（待填写）",
-        "抄送：客户经理（待填写）",
+        f"收件人：{customer_to}",
+        f"抄送：{customer_cc}",
         "",
         "正文：",
         f"您好，{company} 贴现授信申请进入资料确认阶段。",
@@ -420,6 +457,7 @@ def render_email_drafts(
         "建议附件：",
         f"- {customer_material_list.name}",
     ]
+    customer_lines.extend(f"- {path.name}" for path in customer_templates)
     customer_mail.write_text("\n".join(customer_lines) + "\n", encoding="utf-8")
 
     return [manager_mail, customer_mail]
@@ -487,6 +525,9 @@ def generate_documents(
         fill_docx(templates.guideline, guideline_output, mapping)
         outputs.append(guideline_output)
 
+        customer_templates = copy_customer_templates(DEFAULT_TEMPLATES_DIR, output_dir, company)
+        outputs.extend(customer_templates)
+
         customer_material_list = render_customer_material_list(output_dir, mapping)
         outputs.append(customer_material_list)
 
@@ -495,6 +536,7 @@ def generate_documents(
             mapping,
             [survey_output, attachment4_output, guideline_output],
             customer_material_list,
+            customer_templates,
         )
         outputs.extend(email_drafts)
 
