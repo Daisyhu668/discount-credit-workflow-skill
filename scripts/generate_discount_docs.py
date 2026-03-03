@@ -35,6 +35,7 @@ LABEL_ALIASES: Dict[str, str] = {
     "本年度主营产品占比描述": "本年度主营产品占比",
     "采购渠道概述": "采购渠道",
     "销售渠道概述": "销售渠道",
+    "本年营业收入": "本年度营业收入",
 }
 for idx in range(1, 6):
     LABEL_ALIASES[f"上游供货商{idx}主营品类"] = f"上游供货商{idx}品类"
@@ -243,6 +244,17 @@ def compute_fields(raw: Dict[str, str]) -> Dict[str, str]:
         "授信额度": format_decimal(credit_limit),
     }
 
+    # 如果实际经营地址未填写且勾选“同注册地址”，则默认复制注册地址。
+    actual_addr_key = "实际经营地址"
+    same_addr_flag = str(raw.get("实际地址是否同注册地址", "")).strip().lower()
+    same_addr_flag = same_addr_flag in {"是", "yes", "y", "true", "1", "同注册地址", "一致"}
+    if not raw.get(actual_addr_key) and same_addr_flag and raw.get("注册地址"):
+        raw = {**raw, actual_addr_key: str(raw.get("注册地址"))}
+
+    # 模板中若使用“本年营业收入”，则从“本年度营业收入”补齐。
+    if raw.get("本年度营业收入") and not raw.get("本年营业收入"):
+        raw = {**raw, "本年营业收入": str(raw.get("本年度营业收入"))}
+
     final = {**raw, **computed}
     return {k: str(v) for k, v in final.items()}
 
@@ -309,9 +321,14 @@ def fill_docx(template: Path, output: Path, mapping: Dict[str, str]) -> None:
             data = zin.read(item.filename)
             if item.filename == "word/document.xml":
                 text = data.decode("utf-8")
-                text = text.replace("</w:t><w:t>", "")
-                text = re.sub(r"</w:t>\s*</w:r>\s*<w:r[^>]*><w:t[^>]*>", "", text)
-                text = replace_placeholders(text, mapping)
+                # 兼容 docx 占位符被拆分到多个 runs 的情况。
+                def repl(match: re.Match[str]) -> str:
+                    raw = match.group(0)
+                    token = re.sub(r"<[^>]+>", "", raw)
+                    key = token.strip().lstrip("{").rstrip("}").strip()
+                    return escape_xml(mapping.get(key, ""))
+
+                text = re.sub(r"\{\{.*?\}\}", repl, text, flags=re.S)
                 data = text.encode("utf-8")
             zout.writestr(item, data)
 
@@ -333,12 +350,23 @@ def render_customer_material_list(output_dir: Path, mapping: Dict[str, str]) -> 
     lines = [
         f"客户盖章材料清单（{company}）",
         "",
-        "请按以下顺序盖章并回传：",
-        "1. 授信申请相关签章页（如适用）",
-        "2. 营业执照复印件（加盖公章）",
-        "3. 法定代表人身份证明/授权文件（如适用）",
-        "4. 最近一期财务报表（加盖公章）",
-        "5. 其他银行/审批要求的补充材料（如有）",
+        "请按以下顺序准备并回传：",
+        "一、我行固定版本材料",
+        "1. 贴现申请书",
+        "2. 征信授权书",
+        "3. 贴现协议",
+        "4. 承诺书",
+        "",
+        "二、客户资料",
+        "1. 营业执照",
+        "2. 公司章程",
+        "3. 近两年及最近一个月纳税申报表",
+        "4. 近两年及最近一期财务报表",
+        "5. 法人身份证",
+        "",
+        "三、税务状态截图",
+        "1. 纳税评级截图",
+        "2. 纳税状态正常截图",
         "",
         "备注：经营与生产信息、上下游信息如暂缺，可由客户经理在授信报告内后补。",
     ]
