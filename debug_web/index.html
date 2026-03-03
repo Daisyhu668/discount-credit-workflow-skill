@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>贴现授信流程调试台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700&family=Unbounded:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0f14;
+        --panel: #141b23;
+        --panel-2: #0f141b;
+        --line: #2a3a4d;
+        --accent: #f3b13f;
+        --accent-2: #59d4ff;
+        --text: #eef4ff;
+        --muted: #9fb0c7;
+        --danger: #f26b6b;
+        --success: #6be49b;
+        --shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Alegreya Sans", system-ui, -apple-system, sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at 20% 20%, #1a2530 0%, var(--bg) 55%);
+        min-height: 100vh;
+      }
+
+      .grid-overlay {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image: linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 36px 36px;
+        opacity: 0.22;
+      }
+
+      header {
+        padding: 32px 40px 10px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Unbounded", sans-serif;
+        font-size: clamp(22px, 3vw, 32px);
+        letter-spacing: 0.04em;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 15px;
+        margin-top: 6px;
+      }
+
+      .status-pill {
+        background: rgba(89, 212, 255, 0.15);
+        color: var(--accent-2);
+        border: 1px solid rgba(89, 212, 255, 0.35);
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(280px, 1.2fr) minmax(280px, 0.8fr);
+        gap: 24px;
+        padding: 24px 40px 40px;
+      }
+
+      .panel {
+        background: linear-gradient(160deg, rgba(20, 27, 35, 0.95), rgba(15, 20, 27, 0.9));
+        border: 1px solid rgba(42, 58, 77, 0.8);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .panel::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 10% 10%, rgba(243, 177, 63, 0.08), transparent 50%);
+        pointer-events: none;
+      }
+
+      .section-title {
+        font-family: "Unbounded", sans-serif;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        margin: 0 0 12px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+
+      label {
+        font-size: 13px;
+        color: var(--muted);
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(90, 120, 150, 0.4);
+        background: rgba(8, 12, 18, 0.6);
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .chip {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(90, 120, 150, 0.5);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .chip input {
+        width: auto;
+        margin-right: 6px;
+      }
+
+      .divider {
+        height: 1px;
+        background: rgba(90, 120, 150, 0.25);
+        margin: 18px 0;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, var(--accent), #ffdf7f);
+        color: #1b1405;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn.secondary {
+        background: transparent;
+        color: var(--accent-2);
+        border: 1px solid rgba(89, 212, 255, 0.6);
+      }
+
+      .log {
+        background: rgba(6, 8, 12, 0.8);
+        border-radius: 16px;
+        border: 1px solid rgba(90, 120, 150, 0.3);
+        padding: 16px;
+        min-height: 240px;
+        color: #d5e2f5;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+
+      .file-list {
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .file-list li {
+        padding: 4px 0;
+      }
+
+      .notice {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .error {
+        color: var(--danger);
+      }
+
+      .success {
+        color: var(--success);
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid-overlay"></div>
+    <header>
+      <div>
+        <h1>贴现授信流程调试台</h1>
+        <div class="subtitle">本地调试用：字段确认 -> 生成材料 -> 邮件草稿</div>
+      </div>
+      <div class="status-pill">LOCAL MODE</div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2 class="section-title">输入方式</h2>
+        <div class="row">
+          <label class="chip"><input type="radio" name="inputMode" value="manual" checked />表单输入</label>
+          <label class="chip"><input type="radio" name="inputMode" value="upload" />上传文件</label>
+          <span class="chip">支持 JSON / TXT</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <form id="pipelineForm">
+          <div id="manualBlock">
+            <h2 class="section-title">必填字段</h2>
+            <div class="form-grid">
+              <div>
+                <label>企业名称</label>
+                <input name="company" placeholder="厦门市鑫亿宏工贸有限公司" required />
+              </div>
+              <div>
+                <label>统一社会信用代码</label>
+                <input name="tax_id" placeholder="9135..." required />
+              </div>
+              <div>
+                <label>注册时间 (YYYY-MM-DD)</label>
+                <input name="reg_date" placeholder="2005-05-27" required />
+              </div>
+              <div>
+                <label>注册地址</label>
+                <input name="address" placeholder="厦门市同安区..." required />
+              </div>
+              <div>
+                <label>法定代表人</label>
+                <input name="legal_rep" placeholder="陈珊娥" required />
+              </div>
+              <div>
+                <label>行业类型</label>
+                <input name="industry" placeholder="批发业" required />
+              </div>
+              <div>
+                <label>申请日期 (YYYY-MM-DD)</label>
+                <input name="apply_date" placeholder="2025-11-07" required />
+              </div>
+              <div>
+                <label>上一年度营业收入 (万元)</label>
+                <input name="last_year_revenue" placeholder="647.49" required />
+              </div>
+              <div>
+                <label>净资产 (万元)</label>
+                <input name="net_asset" placeholder="37.87" required />
+              </div>
+            </div>
+
+            <div class="divider"></div>
+            <h2 class="section-title">额外字段 (JSON)</h2>
+            <textarea name="extra_json" placeholder='{"主营业务": "批发零售...", "审批注意事项": "..."}'></textarea>
+          </div>
+
+          <div id="uploadBlock" style="display:none;">
+            <h2 class="section-title">上传输入文件</h2>
+            <input type="file" name="input_file" accept=".json,.txt" />
+            <p class="notice">可上传 `00_用户清单_*.txt` 或 `_values_snapshot.json`</p>
+          </div>
+
+          <div class="divider"></div>
+          <h2 class="section-title">执行参数</h2>
+          <div class="form-grid">
+            <div>
+              <label>输出目录</label>
+              <input name="output_dir" placeholder="debug_web/output" />
+            </div>
+            <div>
+              <label>自动联网检索</label>
+              <select name="auto_web_search">
+                <option value="no">关闭</option>
+                <option value="yes">开启</option>
+              </select>
+            </div>
+            <div>
+              <label>允许缺失必填</label>
+              <select name="allow_missing">
+                <option value="no">否</option>
+                <option value="yes">是</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="actions">
+            <button class="btn" type="submit">运行流程</button>
+            <button class="btn secondary" type="button" id="loadSample">加载样例</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">执行日志</h2>
+        <div id="status" class="notice">等待执行。</div>
+        <div id="log" class="log"></div>
+        <h2 class="section-title" style="margin-top: 18px;">输出文件</h2>
+        <ul id="fileList" class="file-list"></ul>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('pipelineForm');
+      const logBox = document.getElementById('log');
+      const statusEl = document.getElementById('status');
+      const fileList = document.getElementById('fileList');
+      const manualBlock = document.getElementById('manualBlock');
+      const uploadBlock = document.getElementById('uploadBlock');
+      const loadSampleBtn = document.getElementById('loadSample');
+
+      document.querySelectorAll('input[name="inputMode"]').forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+          const mode = e.target.value;
+          manualBlock.style.display = mode === 'manual' ? 'block' : 'none';
+          uploadBlock.style.display = mode === 'upload' ? 'block' : 'none';
+        });
+      });
+
+      loadSampleBtn.addEventListener('click', () => {
+        form.company.value = '厦门市鑫亿宏工贸有限公司';
+        form.tax_id.value = '91350211769292356A';
+        form.reg_date.value = '2005-05-27';
+        form.address.value = '厦门市同安区洪塘头一路126号202室之一';
+        form.legal_rep.value = '陈珊娥';
+        form.industry.value = '批发业';
+        form.apply_date.value = '2025-11-07';
+        form.last_year_revenue.value = '647.49';
+        form.net_asset.value = '37.87';
+        form.extra_json.value = '{"审批注意事项":"样例填充"}';
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        statusEl.textContent = '正在执行...';
+        statusEl.className = 'notice';
+        logBox.textContent = '';
+        fileList.innerHTML = '';
+
+        const mode = document.querySelector('input[name="inputMode"]:checked').value;
+        const formData = new FormData(form);
+        formData.append('input_mode', mode);
+
+        try {
+          const res = await fetch('/run', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            statusEl.textContent = data.error || '执行失败';
+            statusEl.className = 'notice error';
+          } else {
+            statusEl.textContent = '执行完成';
+            statusEl.className = 'notice success';
+          }
+          if (data.log) {
+            logBox.textContent = data.log;
+          }
+          if (Array.isArray(data.files)) {
+            data.files.forEach((name) => {
+              const li = document.createElement('li');
+              li.textContent = name;
+              fileList.appendChild(li);
+            });
+          }
+        } catch (err) {
+          statusEl.textContent = '请求失败';
+          statusEl.className = 'notice error';
+          logBox.textContent = String(err);
+        }
+      });
+    </script>
+  </body>
+</html>
