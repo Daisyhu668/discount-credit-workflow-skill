@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -13,15 +14,44 @@ from pathlib import Path
 from typing import Dict
 from urllib.parse import urlparse
 
-try:
-    import cgi  # deprecated in 3.13 but still available
-except ImportError:  # pragma: no cover
-    cgi = None
-
 ROOT = Path(__file__).resolve().parent
 SKILL_ROOT = ROOT.parent
 PIPELINE = SKILL_ROOT / "scripts" / "run_discount_pipeline.py"
 DEFAULT_OUTPUT = ROOT / "output"
+
+
+def parse_multipart(body: bytes, boundary: bytes) -> tuple[Dict[str, str], Dict[str, tuple[str, bytes]]]:
+    fields: Dict[str, str] = {}
+    files: Dict[str, tuple[str, bytes]] = {}
+    delimiter = b"--" + boundary
+    parts = body.split(delimiter)
+    for part in parts:
+        if not part or part in (b"--\r\n", b"--"):
+            continue
+        if part.startswith(b"\r\n"):
+            part = part[2:]
+        header_blob, _, content = part.partition(b"\r\n\r\n")
+        if not header_blob:
+            continue
+        headers = header_blob.decode("utf-8", errors="ignore").split("\r\n")
+        disposition = ""
+        for h in headers:
+            if h.lower().startswith("content-disposition:"):
+                disposition = h
+                break
+        if not disposition:
+            continue
+        name_match = re.search(r'name="([^"]+)"', disposition)
+        if not name_match:
+            continue
+        name = name_match.group(1)
+        filename_match = re.search(r'filename="([^"]*)"', disposition)
+        if filename_match and filename_match.group(1):
+            filename = Path(filename_match.group(1)).name
+            files[name] = (filename, content.rstrip(b"\r\n"))
+        else:
+            fields[name] = content.decode("utf-8", errors="ignore").strip("\r\n")
+    return fields, files
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -37,24 +67,23 @@ class Handler(BaseHTTPRequestHandler):
         if path != "/run":
             self.send_error(404, "Not Found")
             return
-        if cgi is None:
-            self._send_json({"ok": False, "error": "Python cgi module not available."}, code=500)
-            return
-
         content_type = self.headers.get("Content-Type", "")
         if "multipart/form-data" not in content_type:
             self._send_json({"ok": False, "error": "Content-Type must be multipart/form-data"}, code=400)
             return
+        match = re.search(r"boundary=([^;]+)", content_type)
+        if not match:
+            self._send_json({"ok": False, "error": "Missing multipart boundary"}, code=400)
+            return
+        boundary = match.group(1).encode("utf-8")
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        fields, files = parse_multipart(body, boundary)
 
-        form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={
-            "REQUEST_METHOD": "POST",
-            "CONTENT_TYPE": content_type,
-        })
-
-        input_mode = form.getfirst("input_mode", "manual")
-        output_dir_raw = form.getfirst("output_dir", "").strip()
-        auto_web_search = form.getfirst("auto_web_search", "no") == "yes"
-        allow_missing = form.getfirst("allow_missing", "no") == "yes"
+        input_mode = fields.get("input_mode", "manual")
+        output_dir_raw = fields.get("output_dir", "").strip()
+        auto_web_search = fields.get("auto_web_search", "no") == "yes"
+        allow_missing = fields.get("allow_missing", "no") == "yes"
 
         output_dir = Path(output_dir_raw) if output_dir_raw else DEFAULT_OUTPUT
         if not output_dir.is_absolute():
@@ -63,29 +92,33 @@ class Handler(BaseHTTPRequestHandler):
 
         input_path = None
         if input_mode == "upload":
-            fileitem = form["input_file"] if "input_file" in form else None
-            if fileitem is None or not getattr(fileitem, "filename", ""):
+            fileitem = files.get("input_file")
+            if fileitem is None:
                 self._send_json({"ok": False, "error": "未检测到上传文件"}, code=400)
                 return
-            filename = Path(fileitem.filename).name
+            filename, file_bytes = fileitem
             input_path = output_dir / f"upload_{int(time.time())}_{filename}"
             with input_path.open("wb") as f:
-                f.write(fileitem.file.read())
+                f.write(file_bytes)
         else:
             payload = {
-                "企业名称": form.getfirst("company", "").strip(),
-                "统一社会信用代码": form.getfirst("tax_id", "").strip(),
-                "注册时间": form.getfirst("reg_date", "").strip(),
-                "注册地址": form.getfirst("address", "").strip(),
-                "实际地址是否同注册地址": form.getfirst("same_address", "yes").strip(),
-                "实际经营地址": form.getfirst("actual_address", "").strip(),
-                "法定代表人": form.getfirst("legal_rep", "").strip(),
-                "行业类型": form.getfirst("industry", "").strip(),
-                "申请日期": form.getfirst("apply_date", "").strip(),
-                "上一年度营业收入": form.getfirst("last_year_revenue", "").strip(),
-                "净资产": form.getfirst("net_asset", "").strip(),
+                "企业名称": fields.get("company", "").strip(),
+                "统一社会信用代码": fields.get("tax_id", "").strip(),
+                "注册时间": fields.get("reg_date", "").strip(),
+                "注册地址": fields.get("address", "").strip(),
+                "实际地址是否同注册地址": fields.get("same_address", "yes").strip(),
+                "实际经营地址": fields.get("actual_address", "").strip(),
+                "法定代表人": fields.get("legal_rep", "").strip(),
+                "行业类型": fields.get("industry", "").strip(),
+                "申请日期": fields.get("apply_date", "").strip(),
+                "上一年度营业收入": fields.get("last_year_revenue", "").strip(),
+                "净资产": fields.get("net_asset", "").strip(),
+                "客户经理收件人": fields.get("manager_to", "").strip(),
+                "客户经理抄送": fields.get("manager_cc", "").strip(),
+                "客户收件人": fields.get("customer_to", "").strip(),
+                "客户抄送": fields.get("customer_cc", "").strip(),
             }
-            extra_json_raw = form.getfirst("extra_json", "").strip()
+            extra_json_raw = fields.get("extra_json", "").strip()
             if extra_json_raw:
                 try:
                     extra = json.loads(extra_json_raw)
